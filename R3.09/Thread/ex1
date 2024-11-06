@@ -1,0 +1,19 @@
+import threading
+import time
+
+def afficher_message(message):
+    for _ in range(5):
+        print(message)
+        time.sleep(0.1)  # Petit délai entre chaque affichage
+
+# Création des threads
+thread1 = threading.Thread(target=afficher_message, args=("Je suis la thread 1",))
+thread2 = threading.Thread(target=afficher_message, args=("Je suis la thread 2",))
+
+# Démarrage des threads
+thread1.start()
+thread2.start()
+
+# Attente de la fin des threads
+thread1.join()
+thread2.join()
