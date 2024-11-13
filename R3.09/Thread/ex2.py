@@ -1,19 +1,32 @@
 import threading
 import time
 
-def compte_a_rebours(nom, depart):
-    for i in range(depart, 0, -1):
-        print(f"{nom} : {i}")
-        time.sleep(0.1)  # Petit délai entre chaque affichage
+# Fonction pour le thread 1 avec un compte à rebours de 5
+def countdown_thread1():
+    count = 5
+    while count > 0:
+        print(f"thread 1 : {count}")
+        count -= 1
+        time.sleep(0.1)
 
-# Création des threads avec des valeurs de départ différentes
-thread1 = threading.Thread(target=compte_a_rebours, args=("thread 1", 5))
-thread2 = threading.Thread(target=compte_a_rebours, args=("thread 2", 3))
+# Fonction pour le thread 2 avec un compte à rebours de 3
+def countdown_thread2():
+    count = 3
+    while count > 0:
+        print(f"thread 2 : {count}")
+        count -= 1
+        time.sleep(0.1)
+
+# Création des deux threads
+t1 = threading.Thread(target=countdown_thread1)
+t2 = threading.Thread(target=countdown_thread2)
 
 # Démarrage des threads
-thread1.start()
-thread2.start()
+t1.start()
+t2.start()
 
-# Attente de la fin des threads
-thread1.join()
-thread2.join()
+# Attendre que les threads se terminent
+t1.join()
+t2.join()
+
+print("Fin du programme.")
