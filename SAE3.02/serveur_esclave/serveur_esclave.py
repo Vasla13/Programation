@@ -1,11 +1,9 @@
 import socket
 import threading
 import subprocess
-import os
-import sys
 
-HOST = '0.0.0.0'
-PORT = 65433
+HOST = '0.0.0.0'  # Écoute sur toutes les interfaces réseau
+PORT = 65433      # Port par défaut pour le serveur esclave
 
 def handle_master(conn, addr):
     with conn:
@@ -25,7 +23,7 @@ def handle_master(conn, addr):
 
 def execute_program(program):
     try:
-        process = subprocess.run([sys.executable, '-c', program.decode('utf-8')], capture_output=True, text=True, timeout=10)
+        process = subprocess.run(['python', '-c', program.decode('utf-8')], capture_output=True, text=True, timeout=10)
         return process.stdout + process.stderr
     except subprocess.TimeoutExpired:
         return "Erreur : Temps d'exécution dépassé."
@@ -39,7 +37,7 @@ def start_slave_server():
         print(f"Serveur esclave en écoute sur {HOST}:{PORT}")
         while True:
             conn, addr = s.accept()
-            threading.Thread(target=handle_master, args=(conn, addr)).start()
+            threading.Thread(target=handle_master, args=(conn, addr), daemon=True).start()
 
 if __name__ == '__main__':
     start_slave_server()

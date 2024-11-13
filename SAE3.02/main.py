@@ -1,30 +1,38 @@
 import subprocess
 import os
 import sys
-import threading
+import time
 
-def run_serveur_maitre():
-    os.chdir('serveur_maitre')
-    subprocess.run([sys.executable, 'serveur_maitre.py'])
-
-def run_serveur_esclave():
-    os.chdir('serveur_esclave')
-    subprocess.run([sys.executable, 'serveur_esclave.py'])
-
-def run_client():
-    os.chdir('client')
-    subprocess.run([sys.executable, 'client.py'])
+def run_process(script_path):
+    return subprocess.Popen([sys.executable, script_path])
 
 if __name__ == '__main__':
-    # Lancer le serveur esclave dans un thread séparé
-    threading.Thread(target=run_serveur_esclave).start()
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Lancer le serveur maître dans un thread séparé
-    threading.Thread(target=run_serveur_maitre).start()
+    # Chemins des scripts
+    serveur_maitre_script = os.path.join(base_dir, 'serveur_maitre', 'serveur_maitre.py')
+    serveur_esclave_script = os.path.join(base_dir, 'serveur_esclave', 'serveur_esclave.py')
+    client_script = os.path.join(base_dir, 'client', 'client.py')
     
-    # Attendre quelques secondes pour s'assurer que les serveurs sont démarrés
-    import time
-    time.sleep(5)
+    # Lancer le serveur esclave
+    esclave_proc = run_process(serveur_esclave_script)
+    print("Serveur esclave lancé.")
+    
+    # Lancer le serveur maître
+    maitre_proc = run_process(serveur_maitre_script)
+    print("Serveur maître lancé.")
+    
+    # Attendre quelques secondes pour s'assurer que les serveurs sont prêts
+    time.sleep(3)
     
     # Lancer le client
-    run_client()
+    client_proc = run_process(client_script)
+    print("Client lancé.")
+    
+    # Attendre que le client se termine
+    client_proc.wait()
+    
+    # Terminer les serveurs maître et esclave
+    maitre_proc.terminate()
+    esclave_proc.terminate()
+    print("Serveurs terminés.")
