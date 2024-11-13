@@ -1,6 +1,10 @@
 import socket
 import threading
 import subprocess
+import psutil
+import time
+from tasks_queue import TaskQueue
+from monitoring import start_monitoring_server
 
 HOST = '0.0.0.0'  # Écoute sur toutes les interfaces réseau
 PORT = 65432      # Port par défaut
@@ -8,6 +12,9 @@ MAX_TASKS = 5     # Nombre maximum de programmes en cours d'exécution
 
 # Liste des serveurs esclaves
 SLAVE_SERVERS = [('127.0.0.1', 65433)]  # À ajuster selon votre configuration
+
+# File d'attente des tâches
+task_queue = TaskQueue()
 
 def handle_client(conn, addr):
     with conn:
@@ -19,44 +26,68 @@ def handle_client(conn, addr):
                 break
             program += data
 
-        # Surveillance de la charge
-        current_tasks = threading.active_count() - 2  # Exclure les threads principaux
-        print(f"Tâches en cours : {current_tasks}")
+        # Ajouter la tâche à la file d'attente
+        task_queue.add_task(conn, program)
 
-        if current_tasks > MAX_TASKS:
-            # Déléguer à un serveur esclave
-            result = delegate_to_slave(program)
-        else:
-            # Exécuter localement
-            result = execute_program(program)
-
-        # Envoyer le résultat au client
-        conn.sendall(result.encode('utf-8'))
-
-def execute_program(program):
+def execute_task(conn, program):
     try:
         # Exécution sécurisée du programme
         process = subprocess.run(['python', '-c', program.decode('utf-8')], capture_output=True, text=True, timeout=10)
-        return process.stdout + process.stderr
+        result = process.stdout + process.stderr
     except subprocess.TimeoutExpired:
-        return "Erreur : Temps d'exécution dépassé."
+        result = "Erreur : Temps d'exécution dépassé."
     except Exception as e:
-        return f"Erreur d'exécution : {e}"
+        result = f"Erreur d'exécution : {e}"
+    
+    try:
+        conn.sendall(result.encode('utf-8'))
+    except:
+        print("Erreur lors de l'envoi du résultat au client.")
 
-def delegate_to_slave(program):
+def delegate_task(conn, program):
     for slave_host, slave_port in SLAVE_SERVERS:
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.connect((slave_host, slave_port))
                 s.sendall(program)
                 result = s.recv(4096).decode('utf-8')
-                return result
+                conn.sendall(result.encode('utf-8'))
+                return
         except Exception as e:
             print(f"Erreur avec le serveur esclave {slave_host}:{slave_port} - {e}")
             continue
-    return "Aucun serveur esclave disponible."
+    # Si aucun esclave disponible, exécuter localement
+    execute_task(conn, program)
+
+def task_worker():
+    while True:
+        if task_queue.has_tasks():
+            conn, program = task_queue.get_task()
+            # Vérifier la charge du système
+            cpu_usage = psutil.cpu_percent(interval=1)
+            memory_usage = psutil.virtual_memory().percent
+            current_tasks = threading.active_count() - 2  # Exclure les threads principaux
+
+            print(f"CPU Usage: {cpu_usage}%, Memory Usage: {memory_usage}%, Current Tasks: {current_tasks}")
+
+            if cpu_usage > 80 or current_tasks > MAX_TASKS:
+                print("Délégation de la tâche à un serveur esclave.")
+                delegate_task(conn, program)
+            else:
+                print("Exécution locale de la tâche.")
+                execute_task(conn, program)
+        else:
+            time.sleep(1)
 
 def start_server():
+    # Démarrer le serveur de monitoring dans un thread séparé
+    monitoring_thread = threading.Thread(target=start_monitoring_server, daemon=True)
+    monitoring_thread.start()
+
+    # Démarrer le worker des tâches
+    worker_thread = threading.Thread(target=task_worker, daemon=True)
+    worker_thread.start()
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((HOST, PORT))
         s.listen()

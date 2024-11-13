@@ -15,11 +15,11 @@ def handle_master(conn, addr):
                 break
             program += data
 
-        # Exécution du programme
         result = execute_program(program)
-
-        # Renvoi du résultat au serveur maître
-        conn.sendall(result.encode('utf-8'))
+        try:
+            conn.sendall(result.encode('utf-8'))
+        except:
+            print("Erreur lors de l'envoi du résultat au serveur maître.")
 
 def execute_program(program):
     try:
